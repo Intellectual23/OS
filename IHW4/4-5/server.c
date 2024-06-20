@@ -1,3 +1,4 @@
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -5,9 +6,9 @@
 #include <string.h>
 #include <stdio.h>
 #include <pthread.h>
-#include <stdlib.h>
 
 #define PORT 8080
+#define SERVER_IP "127.0.0.1"
 #define M 3
 #define N 4
 #define K 5
@@ -68,18 +69,21 @@ void GenerateLibrary() {
 }
 
 void *HandleClient(void *arg) {
-    pthread_mutex_t book_mutex = PTHREAD_MUTEX_INITIALIZER;
-    int sock_fd = *(int *) arg;
-    struct sockaddr_in cl;
-    socklen_t len = sizeof(cl);
+    int client_socket = *(int *) arg;
+    struct sockaddr_in address = {0};
+    socklen_t len = sizeof(address);
     Message msg;
+    if (recvfrom(client_socket, &address, sizeof(address), 0, (struct sockaddr *) &address, &len) < 0) {
+        perror("Recvfrom failed");
+        close(client_socket);
+        return NULL;
+    }
     while (AllChecked == 0) {
         srand(time(NULL));
         int randomIndex = rand() % (M * N * K);
         Book book_to_check = library[randomIndex];
-        sendto(sock_fd, &book_to_check, sizeof(Book), 0, (struct sockaddr *) &cl, len);
-        if ((recvfrom(sock_fd, &msg, sizeof(msg), 0, (struct sockaddr *) &cl, &len) > 0)) {
-            //pthread_mutex_lock(&book_mutex);
+        sendto(client_socket, &book_to_check, sizeof(Book), 0, (const struct sockaddr *) &address, len);
+        if ((recvfrom(client_socket, &msg, sizeof(msg), 0, (struct sockaddr *) &address, &len) > 0)) {
             Book checked_book = library[msg.bookId];
             int checked_book_status = msg.taken;
             library[checked_book.id].taken = checked_book_status;
@@ -89,11 +93,10 @@ void *HandleClient(void *arg) {
                 PrintBookStatus(checked_book.id);
                 library[checked_book.id].checked = 1;
             }
-            //pthread_mutex_unlock(&book_mutex);
         }
         CheckLibStatus();
     }
-    close(sock_fd);
+    close(client_socket);
     return NULL;
 }
 
@@ -103,7 +106,7 @@ int main() {
     int opt = 1;
     int addrlen = sizeof(address);
 
-    if ((server_fd = socket(AF_INET, SOCK_DGRAM, 0)) == 0) {
+    if ((server_fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
         perror("Socket failed");
         exit(EXIT_FAILURE);
     }
@@ -118,19 +121,20 @@ int main() {
     address.sin_addr.s_addr = INADDR_ANY;
     address.sin_port = htons(PORT);
 
-    if (bind(server_fd, (struct sockaddr *) &address, sizeof(address)) < 0) {
+    if (bind(server_fd, (const struct sockaddr *) &address, sizeof(address)) < 0) {
         perror("Bind failed");
+        close(server_fd);
         exit(EXIT_FAILURE);
     }
+
     GenerateLibrary();
     printf("LIBRARY IS GENERATED!\n");
-    while (AllChecked == 0) {
-        printf("- NEW CONNECTION IS ACCEPTED");
-        pthread_t thread;
-        pthread_create(&thread, NULL, HandleClient, &server_fd);
-        pthread_join(thread, NULL);
 
-        close(server_fd);
-    }
+    //printf("- NEW CONNECTION IS ACCEPTED\n");
+    pthread_t thread;
+    pthread_create(&thread, NULL, HandleClient, &server_fd);
+    pthread_join(thread, NULL);
+
+    close(server_fd);
     return 0;
 }
