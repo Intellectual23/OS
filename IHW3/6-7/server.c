@@ -35,6 +35,7 @@ typedef struct {
 Client clients[5];
 int client_counter = 0;
 pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t lib_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 void addClient(int socket) {
     pthread_mutex_lock(&client_mutex);
@@ -88,6 +89,9 @@ void *HandleClient(void *arg) {
     // hello need for server recognition of student, no catalogue
     int hello;
     while (recv(client_socket, &hello, sizeof(int), 0) >= 0 && AllChecked == 0) {
+
+        pthread_mutex_lock(&lib_mutex);
+
         srand(time(NULL));
         // choosing book
         int randomIndex = rand() % (M * N * K);
@@ -107,6 +111,9 @@ void *HandleClient(void *arg) {
             library[checked_book.id].checked = 1;
         }
         CheckLibStatus();
+
+        pthread_mutex_unlock(&lib_mutex);
+
         sendMessage(&msg);
 
     }
