@@ -53,7 +53,7 @@ int main() {
         perror("Connection Failed");
         return -1;
     }
-    printf("- MONITOR CONNECTED TO SERVER");
+    printf("- MONITOR CONNECTED TO SERVER\n");
 
     Message msg;
 

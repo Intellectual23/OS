@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <string.h>
+#include <stdio.h>
 
 #define PORT 8080
 #define SERVER_IP "127.0.0.1"
@@ -23,18 +24,22 @@ typedef struct {
 typedef struct {
     int bookId;
     int taken;
-    char* text[100];
+    char text[100];
 } Message;
 int allChecked = 0;
 
 void student_work(int client_socket) {
     Book book_to_check;
     Message msg;
+    int hello = 1;
+    send(client_socket, &hello, sizeof(int), 0);
     recv(client_socket, &book_to_check, sizeof(Book), 0);
-    printf("Book received\n");
+    //printf("Book received\n");
     if (book_to_check.taken == 1) {
+        //printf("%d\n", book_to_check.id);
         msg.taken = 1;
     } else {
+        //printf("%d\n", book_to_check.id);
         msg.taken = 0;
     }
     msg.bookId = book_to_check.id;

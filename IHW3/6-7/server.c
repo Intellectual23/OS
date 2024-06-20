@@ -32,7 +32,7 @@ typedef struct {
     pthread_t thread;
 } Client;
 
-Client clients[100];
+Client clients[5];
 int client_counter = 0;
 pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -45,9 +45,8 @@ void addClient(int socket) {
 
 void sendMessage(Message *msg) {
     pthread_mutex_lock(&client_mutex);
-    for (int i = 0; i < client_counter; ++i) {
-        send(clients[i].socket, msg, sizeof(Message), 0);
-    }
+    // catalogue client is the first client, so his id is 0.
+    send(clients[0].socket, msg, sizeof(Message), 0);
     pthread_mutex_unlock(&client_mutex);
 }
 
@@ -63,7 +62,7 @@ void CheckLibStatus() {
     AllChecked = 1;
 }
 
-// Генерация книг в библиотеке
+// Book generation
 void GenerateLibrary() {
     srand(time(0));
     int id = 0;
@@ -86,27 +85,30 @@ void *HandleClient(void *arg) {
     int client_socket = *(int *) arg;
     free(arg);
     Message msg;
-    while (AllChecked == 0) {
+    // hello need for server recognition of student, no catalogue
+    int hello;
+    while (recv(client_socket, &hello, sizeof(int), 0) >= 0 && AllChecked == 0) {
         srand(time(NULL));
+        // choosing book
         int randomIndex = rand() % (M * N * K);
-        printf("RANDOM INDEX IS %d\n", randomIndex);
         Book book_to_check = library[randomIndex];
         send(client_socket, &book_to_check, sizeof(Book), 0);
-        if ((recv(client_socket, &msg, sizeof(msg), 0) > 0)) {
-            Book checked_book = library[msg.bookId];
-            int checked_book_status = msg.taken;
-            library[checked_book.id].taken = checked_book_status;
-            if (library[checked_book.id].checked == 1) {
-                sprintf(msg.text, "Book#%d has already been checked.\n", checked_book.id);
-            } else {
-                sprintf(msg.text, "Book #%d is at line %d, bookcase %d, position %d. It is %s.\n", checked_book.id,
-                        checked_book.line, checked_book.bookCase, checked_book.position,
-                        (checked_book.taken ? "taken" : "not taken\n"));
-                library[checked_book.id].checked = 1;
-            }
-            CheckLibStatus();
-            sendMessage(&msg);
+        // received data
+        recv(client_socket, &msg, sizeof(msg), 0);
+        Book checked_book = library[msg.bookId];
+        int checked_book_status = msg.taken;
+        library[checked_book.id].taken = checked_book_status;
+        if (library[checked_book.id].checked == 1) {
+            sprintf(msg.text, "Book#%d has already been checked.\n", checked_book.id);
+        } else {
+            sprintf(msg.text, "Book #%d is at line %d, bookcase %d, position %d. It is %s.\n", checked_book.id,
+                    checked_book.line, checked_book.bookCase, checked_book.position,
+                    (checked_book.taken ? "taken" : "not taken"));
+            library[checked_book.id].checked = 1;
         }
+        CheckLibStatus();
+        sendMessage(&msg);
+
     }
     close(client_socket);
     return NULL;
